@@ -74,6 +74,7 @@ net.ipv4.tcp_fin_timeout = 1
 net.ipv4.tcp_keepalive_time = 1200
 net.ipv4.ip_local_port_range = 1024 65535
 EOF
+
 /sbin/sysctl -p
 
 #禁止ipv6

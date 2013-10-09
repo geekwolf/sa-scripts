@@ -64,7 +64,17 @@ cat >> /etc/security/limits.conf <<EOF
 *	hard	nproc	65535
 EOF
 sed -i 's#1024#65535#' /etc/security/limits.d/90-nproc.conf
-#内核优化配置
+#内核优化配置（基础系统内核优化)
+cat >> /etc/sysctl.conf << EOF
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_syn_retries = 1
+net.ipv4.tcp_tw_recycle = 1
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_fin_timeout = 1
+net.ipv4.tcp_keepalive_time = 1200
+net.ipv4.ip_local_port_range = 1024 65535
+EOF
+/sbin/sysctl -p
 
 #禁止ipv6
 sysctl -w  net.ipv6.conf.all.disable_ipv6=1 >/dev/null 2>&1

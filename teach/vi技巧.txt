@@ -2,7 +2,6 @@
 ----------------------------------------
 # 信息来源
 ----------------------------------------
-
 www.vim.org         : 官方站点
 comp.editors        : 新闻组
 http://www.newriders.com/books/opl/ebooks/0735710015.html : Vim书籍

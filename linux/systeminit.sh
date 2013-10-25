@@ -45,7 +45,7 @@ echo 'pass .1.3.6.1.3.1 /usr/bin/perl /usr/local/bin/iostat.pl'>/etc/snmp/snmpd.
 echo -e "\033[40;33mSNMP Start Sucessfully!\n \033[0m"
 
 #sync time
-yum -y install ntp
+yum -y install ntp at
 echo "0 0 * * *  root  /usr/sbin/ntpdate ntp.fudan.edu.cn;hwclock -w">>/etc/crontab
 /usr/sbin/ntpdate ntp.fudan.edu.cn;hwclock -w
 #设置默认字符集语言字体等

@@ -1,5 +1,6 @@
 #!/bin/bash
 #pssh.txt:Host IP
+#Autor:Geekwolf
 while read line 
 do
 a=`mkpasswd -l 16 -c 2 -C 2 -s 1 -v`

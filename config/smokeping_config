@@ -1,0 +1,474 @@
+*** General ***
+
+owner    =  nobody
+contact  =  g@163.com
+mailhost = localhost
+sendmail = /usr/lib/sendmail
+# NOTE: do not put the Image Cache below cgi-bin
+# since all files under cgi-bin will be executed ... this is not
+# good for images.
+imgcache = /usr/local/smokeping-2.6.8/htdocs/cache
+imgurl   = cache
+datadir  = /usr/local/smokeping-2.6.8/var
+piddir  =  /usr/local/smokeping-2.6.8/var
+cgiurl   = http://smokeping.linuxhonker.com/smokeping.cgi
+smokemail = /usr/local/smokeping-2.6.8/etc/smokemail
+
+tmail = /usr/local/smokeping-2.6.8/etc/tmail
+# specify this to get syslog logging
+#syslogfacility = local0
+# each probe is now run in its own process
+# disable this to revert to the old behaviour
+# concurrentprobes = no
+*** Alerts ***
+to = g@163.com
+from = monitor@163.com
+
++someloss
+type = loss
+# in percent
+pattern = >0%,*20*,>0%,*20*,>0%
+comment = loss 1 package in 20 continuous 3 times.
+
++manyloss 
+type = loss
+# in percent
+pattern = >10%,*50*,>10%,*50*,>15%
+comment = loss 5 packages in 50 continuous 3 times.
+
+*** Database ***
+
+step     = 60
+pings    = 50
+
+# consfn mrhb steps total
+
+AVERAGE  0.5   1  1008
+AVERAGE  0.5  12  4320
+    MIN  0.5  12  4320
+    MAX  0.5  12  4320
+AVERAGE  0.5 144   720
+    MAX  0.5 144   720
+    MIN  0.5 144   720
+
+*** Presentation ***
+
+charset = UTF-8
+template = /usr/local/smokeping-2.6.8/etc/basepage.html
+
++ charts
+
+menu = Charts
+title = The most interesting destinations
+
+++ stddev
+sorter = StdDev(entries=>4)
+title = Top Standard Deviation
+menu = Std Deviation
+format = Standard Deviation %f
+
+++ max
+sorter = Max(entries=>5)
+title = Top Max Roundtrip Time
+menu = by Max
+format = Max Roundtrip Time %f seconds
+
+++ loss
+sorter = Loss(entries=>5)
+title = Top Packet Loss
+menu = Loss
+format = Packets Lost %f
+
+++ median
+sorter = Median(entries=>5)
+title = Top Median Roundtrip Time
+menu = by Median
+format = Median RTT %f seconds
+
++ overview 
+
+width = 600
+height = 50
+range = 10h
+
++ detail
+
+width = 600
+height = 200
+unison_tolerance = 2
+
+"Last 3 Hours"    3h
+"Last 30 Hours"   30h
+"Last 10 Days"    10d
+"Last 400 Days"   400d
+
+#+ hierarchies
+#++ owner
+#title = Host Owner
+#++ location
+#title = Location
+
+*** Probes ***
+
++ FPing
+
+binary = /usr/sbin/fping
+
+*** Slaves ***
+secrets=/usr/local/smokeping-2.6.8/etc/smokeping_secrets
+
+*** Targets ***
+
+probe = FPing
+
+menu = Top
+title = Network Latency Grapher
+remark = Welcome to the SmokePing website of xxx Company. \
+         Here you will learn all about the latency of our network.
+
+menuextra = <a target='_blank' href='tr.html{HOST}' class='{CLASS}' onclick="window.open(this.href,this.target,'width=800,height=500,toolbar=no,location=no,status=no,scrollbars=no'); return false;">*</a>
+
+##### Host Monitored From Slave Configure #####
+
+#+ Slaves
+#menu = Slaves
+#title = All of the Monitor From the Slaves
+
+#++ baowu1
+#menu = baowu1
+#title = 北京帝联-122.11.61.154 from dfgs1
+#alerts = someloss
+#slaves = dfgs1
+#host = 122.11.61.154
+
+#++ baowu2
+#menu = baowu2
+#title = 北京帝联-122.11.61.155 from dfgs1
+#alerts = someloss
+#slaves = dfgs1
+#host = 122.11.61.155
+
+#++ bwbanhao
+#menu = bwbanhao
+#title = 厦门电信-218.85.133.197 from dfgs1
+#alerts = someloss
+#slaves = dfgs1
+#host = 218.85.133.197
+
+##### Single Host Monitor #####
+
++ CNC
+title = 中国网通
+menu = CNC
+
+++ beijing 
+menu = beijing
+title = 北京-202.108.100.166
+#alerts = someloss
+host = 202.108.100.166
+
+++ tianjin
+menu = tianjin
+title = 天津-218.69.33.1
+#alerts = someloss
+host = 218.69.33.1
+
+++ shanghai
+menu = shanghai
+title = 上海-220.248.112.1
+#alerts = someloss
+host = 220.248.112.1
+
+++ hebei
+menu = hebei
+title = 河北-221.192.1.1
+#alerts = someloss
+host = 221.192.1.1
+
+++ shanxi
+menu = shanxi
+title = 山西-218.26.176.1
+#alerts = someloss
+host = 218.26.176.1
+
+++ neimeng
+menu = neimeng
+title = 内蒙-60.31.195.1
+#alerts = someloss
+host = 60.31.195.1
+
+++ liaoning
+menu = liaoning
+title = 辽宁-218.25.255.1
+#alerts = someloss
+host = 218.25.255.1
+
+++ jilin
+menu = jinlin
+title = 吉林-221.8.96.1
+#alerts = someloss
+host = 221.8.96.1
+
+++ heilongjian
+menu = heilongjiang
+title = 黑龙江-218.7.249.154
+#alerts = someloss
+host = 218.7.249.154
+
+++ shandong
+menu = shandong
+title = 山东-218.59.169.109
+#alerts = someloss
+host = 218.59.169.109
+
+++ heinan
+menu = heinan
+title = 河南-202.111.148.1
+#alerts = someloss
+host = 202.111.148.1
+
+++ jiangsu
+menu = jiangsu
+title = 江苏-58.240.48.43
+#alerts = someloss
+host = 58.240.48.43
+
+++ zhejiang
+menu = zhejiang
+title = 浙江-60.12.193.1
+#alerts = someloss
+host = 60.12.193.1
+
+++ yunan
+menu = yunan
+title = 云南-221.3.131.1
+#alerts = someloss
+host = 221.3.131.1
+
+++ sichuan
+menu = sichuan
+title = 四川-221.10.239.1
+#alerts = someloss
+host = 221.10.239.1
+
+++ shengxi
+menu = shengxi
+title = 陕西-2221.11.1.1
+#alerts = someloss
+host = 221.11.1.1
+
+++ guangxi
+menu = guangxi
+title = 广西-221.7.129.163
+#alerts = someloss
+host = 221.7.129.163
+
+++ fujian
+menu = fujian
+title = 福建-58.22.97.1
+#alerts = someloss
+host = 58.22.97.1
+
+++ chongqing
+menu = chongqing
+title = 重庆-221.5.196.1
+#alerts = someloss
+host = 221.5.196.1
+
+++ changchun
+menu = changchun
+title = 长春-221.8.18.8
+#alerts = someloss
+host = 221.8.18.8
+
+++ dalian
+menu = dalian
+title = 大连-202.96.69.38
+#alerts = someloss
+host = 202.96.69.38
+
+++ qingdao
+menu = qingdao
+title = 青岛-60.209.5.254
+#alerts = someloss
+host = 60.209.5.254
+
+
+++ hubei
+menu = hubei
+title = 湖北-210.52.149.2
+#alerts = someloss
+host = 210.52.149.2
+
+
++CTC
+title = 中国电信Ping
+menu = CTC
+
+++ shanghai1
+menu = shanghai1
+title = 上海-61.152.188.1
+#alerts = someloss
+host = 61.152.188.1
+
+++ shanghai2
+menu = shanghai2
+title = 上海2-61.129.51.254
+#alerts = someloss
+host = 61.129.51.254
+
+++ guangzhou
+menu = guangzhou
+title = 广州-61.145.125.229
+#alerts = someloss
+host = 61.145.125.229
+
+++ shenzhen
+menu = shenzhen
+title = 深圳-218.18.104.1
+#alerts = someloss
+host = 218.18.104.1
+
+++ shangtou
+menu = shangtou
+title = 汕头-218.16.239.129
+#alerts = someloss
+host = 218.16.239.129
+
+++ zhejianghangzhou
+menu = zhejiang
+title = 浙江-218.75.107.60
+#alerts = someloss
+host = 218.75.107.60
+
+++ hunan
+menu = hunan
+title = 湖南-202.103.96.200
+#alerts = someloss
+host = 202.103.96.200
+
+++ sichuan
+menu = sichuan
+title = 四川-221.236.17.1
+#alerts = someloss
+host = 221.236.17.1
+
+++ chongjing
+menu = chongjing
+title = 重庆-222.176.2.214
+#alerts = someloss
+host = 222.176.2.214
+
+++ liangning
+menu = liangning
+title = 辽宁-219.148.197.6
+#alerts = someloss
+host = 219.148.197.6
+
+++ shangdong
+menu = shangdong
+title = 山东-219.148.197.6
+#alerts = someloss
+host = 219.148.197.6
+
+++ hebei
+menu = hebei
+title = 河北-222.222.202.202
+#alerts = someloss
+host = 222.222.202.202
+
+++ hubei
+menu = hubei
+title = 湖北-58.53.192.150
+#alerts = someloss
+host = 58.53.192.150
+
+++ hainan
+menu = hainan
+title = 海南-218.77.178.229
+#alerts = someloss
+host = 218.77.178.229
+
+++ guizhou
+menu = guizhou
+title = 贵州-219.141.62.111
+#alerts = someloss
+host = 219.141.62.111
+
+++ shengxi
+menu = shengxi
+title = 陕西-218.30.85.83
+#alerts = someloss
+host = 218.30.85.83
+
+++ xian
+menu = xian
+title = 西安-218.30.64.121
+#alerts = someloss
+host = 218.30.64.121
+
+++ gansu
+menu = gansu
+title = 甘萧-60.164.225.1
+#alerts = someloss
+host = 60.164.225.1
+
+
+++ ningxia
+menu = ningxia
+title = 宁夏-202.100.96.68
+#alerts = someloss
+host = 202.100.96.68
+
+++ tianjin
+menu = tianjin
+title = 天津-221.238.193.1
+#alerts = someloss
+host = 221.238.193.1
+
+++ fujian
+menu = fujian
+title = 福建-202.109.204.150
+#alerts = someloss
+host = 202.109.204.150
+
+++ jiangxi
+menu = jiangxi
+title = 江西-220.175.8.1
+#alerts = someloss
+host = 220.175.8.1
+
+
+++ neimeng
+menu = neimeng
+title = 内蒙古-219.148.162.4
+#alerts = someloss
+host = 219.148.162.4
+
++ Edu
+title = 教育网ping 
+menu = EDU
+
+++ bj-hangkong
+menu = bj-hangkong
+title = 北京航空-202.112.128.1
+#alerts = someloss
+host = 202.112.128.1
+
+++jinghua
+menu = jinghua
+title = 清华-166.111.8.28
+#alerts = someloss
+host = 166.111.8.28
+
+++ shanghai-jiaodong
+menu = shanghai-jiaotong
+title = 上海交通-202.112.26.34
+#alerts = someloss
+host = 202.112.26.34
+
+++ guangzhou-huanan
+menu = guangzhou-huanan
+title = 广州华南-202.116.160.33
+#alerts = someloss
+host = 202.116.160.33

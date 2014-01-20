@@ -41,6 +41,7 @@ comment = loss 5 packages in 50 continuous 3 times.
 step     = 60
 pings    = 50
 
+
 # consfn mrhb steps total
 
 AVERAGE  0.5   1  1008

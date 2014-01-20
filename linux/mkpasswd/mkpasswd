@@ -1376,7 +1376,6 @@ Use the C<passwd> program (or the program specified by the C<--passwd-program>
 option) to change a user's password. This option requires two things: the
 username as an argument and for the C<Expect> Perl library to be
 installed and functional.
-
 NOTE: THIS IS NOT CURRENTLY WORKING! I have had problems with
 expect, and no ETA on resolving them yet.
 

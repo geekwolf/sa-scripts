@@ -1,0 +1,1546 @@
+#!/usr/bin/perl -w
+#
+# Generate an encrypted password, either based on a password from the
+# user or on one generated randomly.
+#
+# There are many statistical problems with this program, including:
+#
+# W3-4 chooses between 3 and 4 letter words 50/50, not based on
+# the number of 3 and 4 letter words available.
+#
+# Written in 1995 by Aaron Sherman.
+# (c) 1999 by Aaron Sherman, and distributed under the terms
+# of the GNU General Public License (http://www.gnu.org/)
+#
+
+# If you don't have any of these, you should run "cpan Bundle::CPAN"
+use Getopt::Long;
+use Sys::Hostname;
+use Pod::Usage;
+use strict;
+BEGIN{
+  # We used to prefer Math::TrulyRandom, but it has fallen into
+  # disrepair :-(
+  # Try to find the best way to generate random numbers.
+    foreach my $file (qw(/dev/urandom /dev/random)) {
+      if (-r $file) {
+	no  strict;
+	*truly_random_value = sub {
+	  local *F;
+	  open F, "<$file" or die "$file: $!";
+	  my $b;
+	  sysread(F,$b,4)==4 or die "$file: $!";
+	  close F;
+	  return unpack("I",$b);
+	};
+        *truly_rand = sub {
+          my $n = shift;
+          $n ||=1;
+          my $r = truly_random_value();
+          return $r/(0xffffffff+1.0)*$n;
+        };
+	last;
+      }
+    }
+    # Otherwise, we lose
+    if (!defined \&truly_random_value) {
+      eval "use Math::TrulyRandom";
+      die "No Math::TrulyRandom and no /dev/(u)random\n$@" if $@;
+    }
+}
+
+#srand(truly_random_value());
+sub mkrand($);
+sub uniq(@);
+
+our $verbose = 0;
+our $debug = 0;
+our $quiet = 0;
+our $salt = undef;
+our $randpat = undef;
+our $password_count = undef;
+our $pattern = undef;
+our $plain; # 1 = only print plaintext, 0 = only ciphertext, undef = both
+our $wordlist_file = undef;
+our @wordlist;
+our %parts;
+our %revparts;
+our $minpwlen = undef;
+our $maxpwlen = undef;
+our $md5 = 0;
+our $extra_long = 0;
+our $extra_random = 0;
+our $non_words = 0;
+our $passwd = 'passwd';
+our $use_passwd = undef;
+our $strict = 0;
+our $joinmin;
+our $max_retries = 200;
+our $easy = 0;
+our $punct = '!$%&*+=:;?.,(){}[]\\/<> "\'';
+# YAML features
+our $yaml_load = undef;
+our $yaml_dump = undef;
+# Removed some keys that are very hard to type on most 102-key kbds.
+# These two variables are only (and should only) used with --easy
+our $any_left = '!@#$%^123456qwertasdfgzxcvb ';
+our $any_right = '&*()7890-=yuiop[]{}hjkl;\':"nm,./<>? ';
+my $newpunct = undef;
+
+$|=1;
+
+our $expect_compat =
+  {
+   enable => 0,
+   length => 9,
+   digits => 2,
+   lower => 2,
+   upper => 2,
+   special => 1
+  };
+
+Getopt::Long::Configure('auto_abbrev','bundling');
+GetOptions(
+	   'h|?|help' => sub {pod2usage(-verbose => 0)},
+	   'man' => sub {pod2usage(-verbose => 2)},
+	   'v|verbose' => sub {$::verbose=1;$::quiet=0},
+	   'd|debug' => sub {$::verbose=1;$::debug=1;$::quiet=0},
+	   'q|quiet' => sub {$::verbose=0;$::debug=0;$::quiet=1},
+	   'j|join-minimum=i' => \$joinmin,
+	   'r|random' => \$randpat,
+	   's|salt=s' => \$salt,
+	   'w|wordlist=s' => \$wordlist_file,
+	   'n|number=i' => \$password_count,
+	   'p|pattern=s' => sub {
+		$pattern=$_[1];
+                # Re-use the logic for parsing patterns to determine length
+		(my $tmpp = $pattern) =~ s/[\/,]+//g;
+                $maxpwlen=gen_words($tmpp,1,undef,1);
+	   },
+	   'E|expect-mode' => \$expect_compat->{enable},
+	   'P|plaintext' => \$plain,
+	   'C|ciphertext' => sub {$plain = 0},
+	   'U|unix-crypt' => sub {$md5=0},
+	   'M|min-password-length=i' => \$minpwlen,
+	   'X|max-password-length=i' => \$maxpwlen,
+	   '5|md5-format' => \$md5,
+	   'expect-length' => \$expect_compat->{length},
+	   'expect-digits' => \$expect_compat->{digits},
+	   'expect-lower-case' => \$expect_compat->{lower},
+	   'expect-upper-case' => \$expect_compat->{upper},
+	   'expect-special' => \$expect_compat->{special},
+	   'passwd-program|expect-passwd-program' => \$passwd,
+	   'punctuation=s' => \$newpunct,
+	   'extra-long' => \$extra_long,
+	   'R|extra-random' => \$extra_random,
+	   'N|non-words' => \$non_words,
+           'easy' => \$easy,
+	   'user=s' => \$use_passwd,
+           'yaml-load' => \$yaml_load,
+           'yaml-dump=s' => \$yaml_dump,
+	   'strict' => sub{
+	     $randpat=1 unless defined $pattern;
+	     $strict=1;
+	     $joinmin=2 unless defined $joinmin;
+	     $md5=1;
+	     $extra_random=1;
+	     $non_words=1;
+	   }
+	  ) or pod2usage(-verbose => 0);
+
+$joinmin = 1 unless defined $joinmin;
+
+if (defined($newpunct)) {
+  if ($newpunct =~ /^add:(.*)/i) {
+    $punct = join '', sort uniq(split(//, $punct), split(//,$1));
+  } else {
+    $punct = $newpunct;
+  }
+  print "Punctuation: $punct\n" if $verbose;
+}
+
+if (defined($password_count) && $password_count > 1 && $use_passwd) {
+  pod2usage("--user and --number are not compatible");
+}
+
+if ($expect_compat->{enable}) {
+  $randpat = 1;
+  $md5=1;
+  $minpwlen = $maxpwlen = $expect_compat->{length} unless $maxpwlen;
+}
+
+if (defined $maxpwlen) {
+  if ($maxpwlen > 8) {
+    $md5=1;
+  }
+} else {
+  if ($md5) {
+    $maxpwlen = ($extra_long?32:10);
+  } else {
+    $maxpwlen = 8;
+  }
+}
+if (defined $minpwlen) {
+  $maxpwlen = $minpwlen if $minpwlen > $maxpwlen;
+} else {
+  $minpwlen = $maxpwlen - ($maxpwlen>8?2:1);
+}
+our @words;
+my $printpasswd = sub {
+  use Carp;
+  my $word = shift;
+  confess("short passwd") if length($word)<4;
+  print "$word" if $plain || !defined $plain;
+  my $s = (defined($salt)?$salt:getsalt());
+  $s = '$1$' . $s . '$' if $md5;
+  print "(salt='$s')" if $verbose && !$plain;
+  print " : " unless defined $plain;
+  print crypt($word,$s) unless $plain;
+  print "\n";
+};
+if (defined $password_count) {
+  @words = getwords($password_count,$printpasswd);
+} else {
+  if (@ARGV) {
+    $0 =~ s/^.*\///;
+    die "Usage: $0 [-rd] [-s <salt>] [-n <count>] [-p <pattern>]
+	[-w <wordfile>]\n" if $ARGV[0] =~ /^-/ || $ARGV[0] =~ /^--?(usag|help)/;
+    $printpasswd->($_) foreach @words = @ARGV;
+  } else {
+    @words = getwords(1,$printpasswd);
+  }
+}
+
+#foreach my $word (@words) {
+#  print "$word" if $plain || !defined $plain;
+#  my $s = (defined($salt)?$salt:getsalt());
+#  $s = '$1$' . $s . '$' if $md5;
+#  print "(salt='$s')" if $verbose && !$plain;
+#  print ": " unless defined $plain;
+#  print crypt($word,$s) unless $plain;
+#  print "\n";
+#}
+
+if ($use_passwd) {
+  expect_passwd($use_passwd, $passwd, $words[0]);
+}
+
+exit(0);
+
+sub expect_passwd {
+  my $user = shift;
+  my $prog = shift;
+  my $pass = shift;
+  eval "use Expect";
+  die "Failed to find Expect library: $@" if $@;
+  $|=1;
+  my $exp = Expect->spawn($prog) or die "'$passwd' failed: $!\n";
+  # This SHOULD work, but is failing due to the interact method not
+  # catching the newline in input. I've tried different combinations
+  # (CRLF, CR, etc) and nothing works, so for now this is just broken :-(
+  $exp->expect(10,
+	       [ qr/[Cc]urrent.*w(or)?d:/ => sub{
+		   my $exp = shift;
+		   $exp->match_max(1);
+		   $exp->interact(\*STDIN, "\n");
+		   $exp->match_max(undef);
+		   $exp->send("\n");
+		   exp_continue(); } ],
+	       [ qr/[Pp]assw(or)?d:/ => sub {
+		   my $exp = shift;
+		   $exp->send("$pass\n");
+		   exp_continue(); }],
+	       [ qr/Password unchanged/ => sub {
+		   die "Password unchanged\n"; } ],
+	       [ qr/BAD PASS/ => sub {
+		   die "Cannot change password: too easy to crack\n"; } ],
+	       [ qr/error/ => sub {
+		   die "Unknown failure while changing password\n"; } ],
+	       [ qr/do not match/ => sub {
+		   die "'$prog' thinks we typed it wrong!\n"; } ],
+	       [ qr/User not known/ => sub {
+		   die "'$prog' says it can't find $user!\n"; } ],
+	       [ qr/successful/ => sub {
+		   print "Password updated for '$user'\n"; } ],
+	       [ 'eof' => sub { die "Got EOF while changing passwd" } ],
+	       [ 'timeout' => sub { die "'$prog' interaction timed out" } ]
+	      );
+  $exp->hard_close();
+}
+
+sub uniq (@) {
+  my %x;
+  my @r;
+  foreach (@_) {
+    push @r, $_ unless $x{$_}++;
+  }
+  return @r;
+}
+
+sub string_permute_from_list ($); # Forward declaration for recursion
+sub string_permute_from_list ($) {
+  my $list = shift;
+  return @$list if @$list == 1;
+  my @r;
+  my %seen;
+  for(my $i=0;$i<@$list;$i++) {
+    my $s;
+    $s = $list->[$i];
+    next if $seen{$s}++;
+    my @new = @$list;
+    splice @new, $i, 1;
+    push @r, map {"$s$_"} string_permute_from_list(\@new);
+  }
+  return @r;
+}
+
+sub getwords {
+  my $count = shift;
+  my $printfunc = shift;
+  my @words = ();
+  my @pats;
+  my $long = $maxpwlen;
+  my $short = $minpwlen;
+  my $semishort = ( ($short >= $long-1) ? $short : $long-1 );
+  if (!$randpat && !$pattern) {
+    my $word = prompt_words($count);
+    $printfunc->($word);
+    return $word;
+  }
+  if (!$randpat) {
+    if ($pattern =~ /[\/,]/) {
+      @pats = uniq map {string_permute_from_list [split /\//, $_]}
+                split /,/, $pattern;
+    } else {
+      @pats = $pattern;
+    }
+  } elsif ($expect_compat->{enable}) {
+    $short = $long = $expect_compat->{length};
+    my @parts;
+    push @parts, map {('n1') x $_} $expect_compat->{digits};
+    my $a2z = join '', 'a'..'z';
+    push @parts, map {("c[$a2z]1") x $_} $expect_compat->{lower};
+    push @parts, map {("c[".uc($a2z)."]1") x $_} $expect_compat->{upper};
+    push @parts, map {('p1') x $_} $expect_compat->{special};
+    my $total = $expect_compat->{digits}+$expect_compat->{lower}+
+      $expect_compat->{upper}+$expect_compat->{special};
+    if ($total > $long) {
+      warn "More required characters than length, length with be: $total\n";
+      $long = $total;
+    } else {
+      my $extra = $long-$total;
+      push @parts, ('*1') x $extra;
+    }
+    @pats = uniq string_permute_from_list(\@parts);
+  } elsif ($strict) {
+    @pats = ( ['w{$long}'], ['w{$long-1}','*'], ['*{$long}'] );
+    @pats = map { uniq string_permute_from_list($_) } @pats;
+  } else {
+    # These patterns are chosen for being relatively easy to
+    # remember and yet having properties which make them
+    # difficult to brute-force. Using these defaults for a
+    # first-time password generator should be reasonably
+    # secure, though I suggest using the C<-5> option so
+    # that you can generate longer passwords by default.
+    @pats = (
+	     ['WT{$short-1}-{$long-1}', 'w'],
+	     ['WDT{$short-1}-{$long-1}', 'w'],
+	     ['w{$short}-{$long}'],
+             ['xI{$short}-{$long}'],
+	     ['xT{$short}-{$long}'],
+	     ['xTD{$long}'],
+	     ['xT{$short-1}-{$long-1}', '*'],
+	     ['xC(30)T{$short-1}-{$long-1}', '*'],
+	     ['xC(30){$short-1}-{$long-1}', '*'],
+	     ['WJ{$semishort}-{$long}'],
+	     ['WIJ{$semishort}-{$long}'],
+	     ['WC(30)J{$semishort}-{$long}'],
+	     ['WTJ{$semishort}-{$long}'],
+	     ['WTDJ{$semishort}-{$long}'],
+	     ['WJ{$semishort-1}-{$long-1}', '*'],
+	     ['WTJ{$semishort-1}-{$long-1}', '*'],
+	     ['WTDJ{$semishort-1}-{$long-1}', '*'],
+	     ['WJRD{$short}-{$long}'],
+	     ['WJRD{$short-1}-{$long-1}','w'],
+             ['*','n2','W{$short-3}-{$long-3}'],
+             ['n','n2','WC(30){$short-3}-{$long-3}'],
+             ['*','n2','WJ{$short-3}-{$long-3}'],
+             ['n','n2','WJC(30){$short-3}-{$long-3}']
+	    );
+    push @pats,
+      (
+       ['W{$long-2}', 'w','w'],
+       ['x{$short}-{$long}'],
+       ['xI{$short}-{$long}'],
+       ['x{$short-1}-{$long-1}', '*'],
+       ['x{$long-2}-{$long}'],
+       ['x{$long/2}', '*', 'x{$long/2-1}'],
+       ['x{$long-int($long*.4)}', 'W{$long*.4}']
+      ) unless $non_words;
+    if ($maxpwlen >= 8) {
+      push @pats,
+	(
+	 ['WT{($long-2)/2}','WT{($long-2)/2+.5}','w','w']
+	);
+    }
+    if ($maxpwlen >= 9) {
+      push @pats,
+        (
+         ['x{$long/2-1}','x{$long/2-1}','n','n'],
+         ['xC(20){$long/2-1}','x{$long/2-1}','n','n'],
+         ['xC{$long/2-1}','x{$long/2-1}','n','n']
+        );
+    }
+    if ($maxpwlen >= 10) {
+      push @pats,
+	(
+         ['x{$short/2-1}-{$long/2-1}','x{$short/2-1}-{$long/2-1}','n','n'],
+         ['xI{$short/2-1}-{$long/2-1}','x{$short/2-1}-{$long/2-1}','n','n'],
+         ['xC(20){$short/2-1}-{$long/2-1}','x{$short/2-1}-{$long/2-1}','n','n'],
+         ['xC{$short/2-1}-{$long/2-1}','x{$short/2-1}-{$long/2-1}','n','n'],
+	 ['W3','x6','w{$long-9}'],
+	 ['WJ{$long-3}', 'w3'],
+	 ['WIJ{$long-3}', 'w3'],
+	 ['WDJ{$long-3}', 'w3'],
+	 ['x4', 'WJ{$long-4}'],
+	 ['x4', 'WJC(30){$long-4}'],
+	 ['WJC(30){$short}-{$long}'],
+	 ['WJT{$short}-{$long}'],
+	 ['WJDT{$short}-{$long}'],
+	 ['WJN{$short}-{$long}'],
+	 ['WJDN{$short}-{$long}'],
+	 ['xJ{$short-1}-{$long-1}','w1'],
+	 ['xJ{$short-2}-{$long-2}','w1','w1']
+	);
+    }
+    if ($maxpwlen >= 12) {
+      push @pats,
+	(
+	 ['WJ{$long/2}', 'WJ{int($long/2+0.5)}'],
+	 ['WIJ{$long/2}', 'WJ{int($long/2+0.5)}'],
+	 ['WJ{$long/2}', 'x{int($long/2+0.5)}'],
+	 ['WJ{$long-4}', (('w1') x 4)],
+	 ['WJ4WJ4WJ4'],
+	 ['WIJ4WJ4WJ4'],
+	 ['WJ4','WJ4','x4'],
+         ['n','n2','n3','xC(30)T{$short-6}-{$long-6}'],
+         ['n','n2','n3','xC(30){$short-6}-{$long-6}'],
+         ['WJ4','n1','n2','x{$short-7}-{$long-7}'],
+         ['WJC(30)4','n1','n2','x{$short-7}-{$long-7}']
+	);
+    }
+    if ($maxpwlen >= 16) {
+      push @pats,
+	(
+	 ['WJ{$short/2}-{$long/2}', 'WJ{$short/2+.5}-{$long/2+.5}'],
+	 ['W{$short/2}-{$long/2}', 'WJ{$short/2+.5}-{$long/2+.5}'],
+	 ['WT{$short/2}-{$long/2}', 'WJ{$short/2+.5}-{$long/2+.5}'],
+	 ['WN{$short/2}-{$long/2}', 'WJ{$short/2+.5}-{$long/2+.5}'],
+	 ['WC(30){$short/2}-{$long/2}', 'WJ{$short/2+.5}-{$long/2+.5}'],
+	 ['WTD{$short/2}-{$long/2}', 'WJ{$short/2+.5}-{$long/2+.5}'],
+	 ['WND{$short/2}-{$long/2}', 'WJ{$short/2+.5}-{$long/2+.5}']
+	);
+    }
+    @pats = map { uniq string_permute_from_list($_) } @pats;
+  }
+  @pats =  map {(my$x=$_)=~s/\{(.*?)\}/'int('.$1.')'/eeg;$x} @pats;
+  my $npats = @pats;
+  print "$npats patterns for -r (at maxlen=$maxpwlen): ",
+    join(", ", map {"'$_'"} @pats), "\n" if $verbose;
+  if(@pats > 1) {
+    for(1..$count) {
+      my $ipat = $pats[int(mkrand @pats)];
+      push @words, (my($wtmp) = gen_words($ipat,1));
+      $printfunc->($wtmp);
+    }
+  } else {
+    @words = gen_words($pats[0],$count,$printfunc);
+  }
+  return @words;
+}
+
+sub getsalt {
+  my @c = ('A'..'Z','a'..'z',0..9,'.','/');
+  my @s;
+  push @s, $c[int mkrand @c] foreach 0..(($md5?8:2)-1);
+  return join '', @s;
+}
+
+# This function takes a pattern and a count. The pattern controls
+# how the password is selected, and is of the form:
+#   letter optional count letter optional count ...
+# For example:
+#   "W8" - 8-letter word
+#   "W4nnp" - 4-letter word followed by 2 numbers and 1 punctuation char.
+#   "c[123]W5-7" - a 1, 2 or 3 followed by a 5 to 7 letter word.
+#
+# Available pattern letters:
+#
+# W - Word from /usr/dict/words (or equiv)
+#      Modifiers (e.g. WST):
+#         T or N: Translate e, i, o and s to 3, 1, 0 and 5 respectively.
+#                 N does this to all occurances, T flips a coin for each one.
+#         S: Used with T or N. Converts some of the s's to $'s
+#         C: Mix up case of letters (50% chance upper/lower)
+# p - Punctuation (!$%&*+=:;?.,_)
+# a - Alpha character (a-z, A-Z)
+# w - Word character (same as a, but includes 0-9 and _)
+# n - Number (0-9)
+# * - Any of the above characters or space.
+# c - A specific list of characters (c[chars]count, e.g. "c[abcd]2")
+#
+# The second paramter (count) specifies how many passwords to return.
+#
+# Keep in mind that security of N == security of W because it's always
+# the same number of permutations. This is assuming that an attacker
+# knows which pattern you use. If you change the pattern randomly,
+# then you have an advantage....
+#
+# If anyone is wondering, my personal favorite pattern is xJCVT9,
+# though "w9" runs a close second. Of course, since I've put those here,
+# I can no longer use either one to generate my passwords ;-)
+#
+sub gen_words {
+  my $pat = shift;
+  my $count = shift;
+  my $printfunc = shift;
+  my $maxpw = shift;
+  $maxpwlen=0 if $maxpw;
+  my $attr;
+  my $i;
+  my $alpha = join('','a'..'z','A'..'Z');
+  my $nums = join('',0..9);
+  my $alphanum = join('',$alpha,$nums,'_');
+  my $any = join('',$alpha,$nums,$punct,' ');
+  if ($any_left !~ /A/) {
+    s/([a-z])/$1.uc$1/eg foreach $any_left, $any_right;
+  }
+  my @words;
+  if (!$maxpw && @wordlist == 0) {
+    get_wordlist_and_parts($wordlist_file,\%parts,\%revparts);
+  }
+  my $redo = 0;
+  if ($maxpw) {
+      print "Determining max length of passwords\n" if $debug;
+  } else {
+      print "Generating $count passwords with pattern: \"$pat\":\n" if $debug;
+  }
+  for($i=0;$i<$count;$i++,($printfunc and $printfunc->($words[-1])),($redo=0)) {
+    print "\tPassword # ", $i+1, ":\n" if $debug;
+    my $tmp = $pat;
+    $words[$i] = '';
+    while($tmp =~ s/^(([pawn*Wx])((?:[CDIJNRSTV](?:\([^\)]+\))?)*(\d+)(\-(\d+))?)?)// ||
+	  $tmp =~ s/^((c)\[(.+?)\](?:(\d+)(\-(\d+))?)?)//) {
+      #warn "Matched: $&";
+      my $subpat = $1;
+      my $type = $2;
+      my $chars = $3;
+      my $from = $4;
+      my $to = $6;
+      my $text = $&;
+      if ($maxpw) {
+        my $chunklen = (defined($to)?$to:(defined($from)?$from:1));
+	print "Chunk len of '$text': $chunklen\n" if $verbose;
+        $maxpwlen+= $chunklen;
+        next;
+      }
+      my $n = defined($from)?
+	(defined($to)?int(mkrand($to-$from+1))+$from:$from):1;
+      $n -= 1 if defined($chars) && $chars =~ /[DI]/;
+      my $chunk = '';
+      my $j;
+      if ($type eq 'p') {
+	print "\tPunctuation ($n)" if $debug;
+	for($j=0;$j<$n;$j++) {
+	  $chunk .= substr($punct,int(mkrand length $punct),1);
+	}
+      } elsif ($type eq 'a') {
+	print "\tAlpha ($n)" if $debug;
+	for($j=0;$j<$n;$j++) {
+	  $chunk .= substr($alpha,int(mkrand length $alpha),1);
+	}
+      } elsif ($type eq 'w') {
+	print "\tWord chars ($n)" if $debug;
+        my $off = int(mkrand(2));
+        my $left = join '', grep {/[a-z]/} split //, $any_left;
+        my $right = join '', grep {/[a-z]/} split //, $any_right;
+	for($j=0;$j<$n;$j++) {
+          my $choices = ($easy?(($j+$off)%2?$left:$right):$alphanum);
+	  $chunk .= substr($choices, int(mkrand length $choices),1);
+        }
+      } elsif ($type eq 'n') {
+	print "\tNumbers ($n)" if $debug;
+	for($j=0;$j<$n;$j++) {
+	  $chunk .= substr($nums,int(mkrand length $nums),1);
+	}
+      } elsif ($type eq '*') {
+	print "\tAnything goes ($n)" if $debug;
+        my $off = int(mkrand(2));
+	for($j=0;$j<$n;$j++) {
+          my $choices = ($easy?(($j+$off)%2?$any_left:$any_right):$any);
+	  $chunk .= substr($choices, int(mkrand length $choices),1);
+	}
+      } elsif ($type eq 'W') {
+	$attr = '';
+	if ($chars =~ /^(([A-Z](\([^\)]+\))?)+)/) {
+	  $attr = $1;
+	}
+
+	print "\tWord (length=$n, attr=$attr)" if $debug;
+	my @sel;
+	if ($attr =~ /J/) {
+	  $chunk = make_join_word($n);
+	} else {
+	  @sel = grep {length() == $n} @wordlist;
+	  die "No words available of length $n!\n" if @sel == 0;
+	  my $sellen = @sel;
+	  print "\n\t$sellen words of length $n to select from\n" if $debug;
+	  $chunk = $sel[int mkrand @sel];
+	}
+	if ($attr =~ /R/) {
+	  $chunk = reverse $chunk;
+	} elsif ($attr =~ /V/) {
+	  $chunk = reverse $chunk if mkrand(1) <= chance_of('V',$attr);
+	}
+	if ($attr =~ /D/) {
+	  my $r = int rand $n;
+	  # Duplicate a random character
+	  $chunk = substr($chunk,0,$r+1) . substr($chunk,$r,1) .
+	    substr($chunk,$r+1);
+	}
+	if ($attr =~ /N/) {
+	  $chunk = trans_letters($chunk,chance_of('N',$attr),($attr=~/S/));
+	} elsif ($attr =~ /T/) {
+	  $chunk = trans_letters($chunk,chance_of('T',$attr),($attr=~/S/));
+	}
+	if ($attr =~ /C/) {
+	  $chunk =~ s/([a-z])/mkrand(1)<chance_of('C',$attr)?lc$1:uc$1/eig;
+	}
+        if ($attr =~ /I/) {
+          $chunk = inject_letter($chunk);
+        }
+      } elsif ($type eq 'c') {
+	$n = 1 unless $n;
+	print "\tCharacters [$chars] ($n)" if $debug;
+	for($j=0;$j<$n;$j++) {
+	  $chunk .= substr($chars,int(mkrand length $chars),1);
+	}
+      } elsif ($type eq 'x') {
+	print "\tPseudo-word ($n)" if $debug;
+	$attr = '';
+	if (defined($chars) && $chars =~ /^([A-Z]+)/) {
+	  $attr = $1;
+	}
+	$chunk = pseudo_word($n,$attr);
+      } else {
+	die "Unknown pattern: $type\n";
+      }
+      if (!defined $chunk) {
+	warn "\tFailure to generate chunk for '$subpat'\n";
+      } else {
+	print ": \"$chunk\"\n" if $debug;
+	$words[$i] .= $chunk;
+      }
+    }
+    if ($maxpw) {
+      print "Max password length calculated: $maxpwlen\n" if $verbose;
+      return $maxpwlen;
+    } elsif ($non_words && is_word($words[$i])) {
+      if ($redo++ > $max_retries) {
+        warn "Too many retries on pattern '$pat', turn off --non-words\n";
+        next;
+      }
+      print "\t$words[$i] is a word (or word-combination), re-doing\n" if $debug;
+      redo;
+    } elsif ($easy && !is_easy($words[$i],$pat)) {
+      if ($redo++ > $max_retries) {
+        warn "Too many retries on pattern '$pat', turn off --easy\n";
+        next;
+      }
+      print "\t$words[$i] is not easy to type, re-doing\n" if $debug;
+      redo;
+    }
+    if (length($words[$i]) > $maxpwlen && !$plain) {
+      warn "Warning: Only $maxpwlen characters of \"$words[$i]\" are used (use -5 to force MD5 format long-passwords).\n" if !$quiet && $maxpwlen == 8;
+      $words[$i] = substr($words[$i],0,$maxpwlen);
+      warn "Warning: Password truncated to \"$words[$i]\" ($maxpwlen)\n" if !$quiet;
+    }
+  }
+  return @words;
+}
+
+# Populate the global @wordlist array
+sub get_wordlist_and_parts {
+    my $wordlist_file = shift;
+    my $parts = shift;
+    my $revparts = shift;
+    $wordlist_file =
+      (defined($wordlist_file) and -f $wordlist_file and $wordlist_file) ||
+	(-f "/usr/dict/words" and "/usr/dict/words") ||
+	  (-f "/usr/share/dict/words" and "/usr/share/dict/words");
+    if ($yaml_load || $yaml_dump) {
+        # Runtime load if yaml options are used
+        eval "use YAML::Syck";
+        !$@ or die $@;
+    }
+    if ($yaml_load) {
+        my $wlref;
+        my $yaml_data = YAML::Syck::LoadFile($wordlist_file);
+        die "Failed to acquire YAML wordlist from $wordlist_file\n"
+                unless $yaml_data && ref($yaml_data) && @$yaml_data == 3;
+        ($wlref,$parts,$revparts) = @$yaml_data;
+        no strict 'refs';
+        *wordlist = $wlref;
+    } else {
+        my $max = $maxpwlen + 1;
+        @wordlist = uniq grep {!$easy || is_easy($_)} map {lc $_}
+            grep {/^[A-Za-z][a-z]{2,$max}$/}
+            lines_from_file($wordlist_file);
+        die "Cannot get wordlist" unless @wordlist;
+        foreach my $word (@wordlist) {
+            $parts->{start}[3]{substr($word,0,3)}++;
+            $parts->{start}[2]{substr($word,0,2)}++;
+            for(my $i=0;$i<length($word);$i+=3) {
+                if ($i+2 < length($word)) {
+                    $parts->{mid}[2]{substr($word,$i,2)}++;
+                    if ($i+3 < length($word)) {
+                        $parts->{mid}[2]{substr($word,$i+1,2)}++;
+                        $parts->{mid}[3]{substr($word,$i,3)}++;
+                    } elsif ($i+3 == length($word)) {
+                        $parts->{end}[3]{substr($word,$i,3)}++;
+                    }
+                } elsif ($i+2 == length($word)) {
+                    $parts->{end}[2]{substr($word,$i,2)}++;
+                }
+            }
+        }
+        foreach my $v ('start', 'mid', 'end') {
+            foreach my $x (2,3) {
+                my $hash = $parts->{$v}[$x];
+                @{$revparts->{$v}}{keys %$hash} = values %$hash;
+                my $array = $parts->{$v}[$x] = [sort {$$hash{$a}<=>$$hash{$b}} keys %$hash];
+                my $nx = @$array;
+                print "$v-word parts of len $x: $nx\n" if $debug;
+            }
+        }
+    }
+    if ($yaml_dump) {
+        YAML::Syck::DumpFile($yaml_dump,[\@wordlist,$parts,$revparts]);
+    }
+}
+
+# Take a length and a set of permutation attributes. Return a pseudo-word
+# of the given length.
+# Uses global, %parts
+sub pseudo_word {
+  my $n = shift;
+  my $attr = shift;
+  my $chunk;
+  die "Cannot make pseudo-word less than 2 chars\n" if $n < 2;
+  WORD_GEN: until ($chunk && (!$non_words || !is_word($chunk))) {
+    $chunk = '';
+    my $nn=$n;
+    if ($attr =~ /J/) {
+      while($nn >= 4 && $nn != 5) {
+        my $wlen;
+        if ($nn > 6 && mkrand(1) > 0.5) {
+	  $wlen = 5;
+        } else {
+	  $wlen = 4;
+        }
+        $chunk .= make_join_word($wlen);
+        $nn -= $wlen;
+      }
+      print "\t\t$nn remaining characters will be generated\n" if $debug;
+    }
+    my $start = 1;
+    while($nn) {
+      my $p;
+      if ($start) {
+        $p = $parts{start};
+      } elsif ($nn<4) {
+        $p = $parts{end};
+      }else {
+        $p = $parts{mid};
+      }
+      if ($nn >= 3 && $nn != 4) {
+        $p = $p->[3];
+        $nn-=3;
+      } elsif ($nn >= 2) {
+        $p = $p->[2];
+        $nn-=2;
+      }
+      my $r = int(sqrt(mkrand(@$p)*@$p));
+      #redo if $easy && !is_easy($chunk.($p->[$r]));
+      $chunk .= $p->[$r];
+      $start = 0;
+    }
+    my $clen = length($chunk);
+    for(my $i=0;$i<$clen;$i++) {
+      foreach my $sz (2,3) {
+        if ($i+$sz<=$clen) {
+          my $pos = ($i==0?'start':($i+$sz==$clen?'end':'mid'));
+          unless($revparts{$pos}{substr($chunk,$i,$sz)}) {
+            warn "\n\t\t'$chunk' is not valid, redoing\n" if $debug;
+            $chunk = '';
+            next WORD_GEN;
+          }
+        }
+      }
+    }
+    if ($attr =~ /I/) {
+      $chunk = inject_letter($chunk);
+    }
+  }
+  if ($attr =~ /R/) {
+    $chunk = reverse $chunk;
+  } elsif ($attr =~ /V/) {
+    $chunk = reverse $chunk if mkrand(1) >= chance_of('V',$attr);
+  }
+  if ($attr =~ /D/) {
+    my $ri = int rand $n;
+    print " (duplicating character $ri of '$chunk')" if $debug;
+    # Duplicate a random character
+    $chunk = substr($chunk,0,$ri+1) . substr($chunk,$ri,1) .
+      substr($chunk,$ri+1);
+  }
+  if ($attr =~ /N/) {
+    $chunk = trans_letters($chunk,chance_of('N',$attr),($attr=~/S/));
+  } elsif ($attr =~ /T/) {
+    $chunk = trans_letters($chunk,chance_of('T',$attr),($attr=~/S/));
+  }
+  if ($attr =~ /C/) {
+    $chunk =~ s/([a-z])/mkrand(1)>chance_of('C',$attr)?lc$1:uc$1/eig;
+  }
+
+  return $chunk;
+}
+
+sub make_join_word {
+  my $n = shift;
+  my $chunk = '';
+  my @sel = grep {$n-length($_) >= ($n>5?2:1)} @wordlist;
+  if ($debug) {
+    my $sell = @sel;
+    print "\n\t\tmaking $n-character join word\n";
+    print "\t\t$sell initial words to choose\n";
+  }
+  until($chunk) {
+    my $word1 = lc $sel[int mkrand @sel];
+    my $word1len = length($word1);
+    my $openlen = $n-$word1len;
+    my @ends = map {lc $_} grep {
+      my $selen = length($_);
+      $selen-$openlen >= $joinmin && substr($word1,$openlen-$selen) eq substr($_,0,$selen-$openlen);
+    } @sel;
+    if ($debug) {
+      my $endsl = @ends;
+      print "\t\t\t$endsl remainder words for selection: $word1\n";
+    }
+    if (@ends) {
+      my $word2 = $ends[int mkrand @ends];
+      my $word2len = length($word2);
+      $chunk = $word1.substr($word2,$word2len-$openlen);
+      $chunk = '' if $non_words && is_word($chunk);
+    }
+  }
+  return $chunk;
+}
+
+# This is a simple check to see if the string is easy to type
+sub is_easy {
+        my $word  = shift;
+        my $pat = shift;
+        my $left  = quotemeta '3456wertasdfgxcvb ';
+        my $right = quotemeta '7890yuiohjkl;nm, ';
+        # First-pass: any non-easy character?
+        return 0 if $word =~ /[^$any_left$any_right]/;
+        if ($pat && ($pat =~ /[\*pcC]/)) {
+                $left = $any_left;
+                $right = $any_right;
+        }
+        $word =~ s/(.)\1+/$1/g;
+        if ($word =~ /^[$left]?([$right][$left])*[$right]?$/) {
+                return 1;
+        } else {
+                return 0;
+        }
+}
+
+# Given a string and a global @wordlist, see if the string is either
+# a single word or a concatenation of words.
+sub is_word {
+  my $string = lc(shift @_);
+  my $slen = length($string);
+  foreach my $word (map {lc $_} @wordlist) {
+    my $wlen = length($word);
+    if($wlen > $slen) {
+      next;
+    } elsif ($wlen == $slen) {
+      return 1 if $word eq $string;
+    } elsif($word eq substr($string,0,$wlen)) {
+      return 1 if is_word(substr($string,$wlen));
+    }
+  }
+  return 0;
+}
+
+sub prompt_words {
+  my $count = shift;
+  my $i;
+  my @words;
+  $|=1;
+  system("stty -echo") if -t STDOUT;
+  $SIG{TERM}=\&stty_clean;
+  $SIG{INT}=\&stty_clean;
+  $SIG{QUIT}=\&stty_clean;
+  $SIG{HUP}=\&stty_clean;
+  for($i=0;$i<$count;$i++) {
+    print "Password", $count>1?"[".($i+1)."]":"", ": " if -t STDOUT;
+    chop($words[$i] = <STDIN>);
+    print "\nRetype Password: " if -t STDOUT;
+    if (scalar(<STDIN>) !~ /^\Q$words[$i]\E\s*$/) {
+      warn "\nThe passwords do not match!\n";
+      redo;
+    } elsif (length($words[$i]) < 1) {
+      warn "\nNo password was typed!\n";
+      redo;
+    } elsif (length($words[$i]) > 8) {
+      warn "Warning: Only 8 characters of \"$words[$i]\" are used.\n" if !$quiet;
+      $words[$i] = substr($words[$i],0,8);
+      warn "Warning: Password truncated to \"$words[$i]\"\n" if !$quiet;
+    } else {
+      print "\nPassword accepted, thank you.\n";
+    }
+  }
+  system("stty echo") if -t STDOUT;
+  return @words;
+}
+
+sub stty_clean {
+  system("stty echo") if -t STDOUT;
+  print "\n";
+  exit(1);
+}
+
+sub trans_letters {
+  my $word = shift;
+  my $chance = shift;
+  $chance *= 100 if defined($chance) && $chance <= 1;
+  my $s2dollar = shift;
+  $chance = 50 unless defined $chance;
+  $word =~ s/([aeiost])/(mkrand(100)<$chance)?$1:trans_letter($1,$s2dollar)/eg;
+  print "$chance\% chance of translating yielded '$word'\n" if $debug;
+  return $word;
+}
+
+sub inject_letter {
+  my $word = shift;
+  my $letter = shift;
+  my $len = length($word);
+  my $pos = mkrand($len+1);
+  my $all = join('',uniq map {split //, $_} $punct,$any_left,$any_right);
+  unless (defined($letter)) {
+    $letter = substr($all,int(mkrand(length($all))),1);
+  }
+  substr($word,$pos,0) = $letter; # insert letter, extending string as required
+  return $word;
+}
+
+sub trans_letter {
+  my %trans = ( 'a' => 4,
+		'e' => 3,
+		'i' => 1,
+		'o' => 0,
+		's' => 5,
+ 		't' => 7);
+  my $letter = shift;
+  my $s = shift;
+  if (defined($s) && $s && $letter eq 's') {
+    return(mkrand(2)<1?'5':"\$");
+  } else {
+    return $trans{$letter};
+  }
+}
+
+sub chance_of {
+        my $char = shift;
+        my $attr = shift;
+        if ($attr =~ /$char\(\s*(\d+)\s*\)/) {
+                return $1/100;
+        } else {
+                return 0.5;
+        }
+}
+
+sub mkrand($) {
+  my $range = shift;
+  return truly_rand($range);
+}
+
+sub lines_from_file($) {
+  my $file = shift;
+  my $fh;
+  open $fh, "<", $file or die "Cannot open $file: $!\n";
+  my @lines;
+  local $_;
+  push @lines, $_ while $_ = <$fh>;
+  chomp @lines;
+  return @lines;
+}
+
+__END__
+
+=head1 NAME
+
+mkpasswd - A tool for the pseudo-random generation of passwords.
+
+=head1 SYNOPSIS
+
+  mkpasswd [-5Pdhqrv] [-s|--salt STRING] [-w|--wordlist FILE] [-n|--number N]
+	[-p|--pattern STRING] [-X|--max-password-length N]
+
+  options:
+
+	   -h|-?|--help		Print summary help
+	   --man		Show manual
+	   -v|--verbose		Verbose output
+	   -d|--debug		Debugging mode
+	   -q|--quiet		Suppress excess output
+	   -r|--random		Choose a random pattern
+	   -s|--salt STRING	Use STRING as the salt for on-way encryption
+	   -w|--wordlist FILE	Use FILE as the source for randomly chosen words
+	   -n|--number N	Produce N passwords
+	   -p|--pattern STRING	Use STRING as the password pattern
+	   -C|--ciphertext	Don't produce the plain text password
+	   -N|--non-words	Discard results that are words (combinations)
+	   -P|--plaintext	Don't produce the encrypted password
+	   -R|--extra-random	Re-seed RNG from entropy pool constantly
+	   -U|--unix-crypt	Turn off MD5 (this is the default)
+	   -X|--max-password-length N
+				Produce passwords no more than N characters long
+	   -5|--md5-format	Use MD5 password encryption
+	   --extra-long		Allow extra-long random patterns
+	   --punctuation STR	Use STR as the valid punctuation
+	   --punctuation add:STR	Add STR to the punctuation list
+	   --strict		Strict mode (same as -rR5 plus harder patterns)
+           --yaml-dump FILE     Dump wordlist datastructures to FILE
+           --yaml-load          Read wordlist (-w) as YAML from --yaml-dump
+
+  Expect's mkpasswd compatibility:
+
+	   -E|--expect-mode	Turn on compatibility with expects' mkpasswd
+	   --expect-length N	Same as expect-mkpasswd's "-l" option
+	   --expect-digits N	Same as expect-mkpasswd's "-d" option
+	   --expect-lower-case N	Same as expect-mkpasswd's "-c" option
+	   --expect-upper-case N	Same as expect-mkpasswd's "-C" option
+	   --expect-special N	Same as expect-mkpasswd's "-s" option
+
+	   --expect-passwd-program PATH	Same as expect-mkpasswd's "-p" option
+					NOTE: NOT WORKING
+
+=head1 DESCRIPTION
+
+This program generates a random password suggestion, by using a user-supplied
+pattern. Of course, the most secure UNIX-style 8-character password is a
+completely random 8-character string that has been pre-screened for well-known
+weak passwords, and I encourage anyone using mkpasswd to apply such a
+system. However, mkpasswd's job is to make the generation of reasonably secure
+passwords somewhat easier for the average operator or help-desk person who
+simply wants to generate that first password that a user needs to log in
+and change their password.
+
+To run mkpasswd, you should get the TrulyRandom package, which can be
+found on any CPAN site (see www.perl.com).
+
+Now you need to decide what you want your passwords to look like. In general,
+it is best to I<not> have one set format of passwords (even a really good
+password formula will likely reduce the number of passwords that a cracker
+has to guess by tens of millions). Instead, you the person executing
+mkpasswd should have a pre-determined list of 5-10 password formats, and
+you should choose one (perhaps based on the day of the week, or just
+"randomly"). This is much better than having 5-10 passwords, since each
+pattern may generate millions (hopefully much more) of possible passwords.
+
+You specify patterns with the C<-p> or C<--pattern> option.
+
+The pattern format is C<< <pattern><modifier(s)><length> >> where
+pattern is a character from the set listed below; modifier is a specific
+set of parameters taken by the
+pattern; and length is either a number,
+or two numbers with a dash between them.
+The length is applied to the pattern, limiting how many characters can be in
+the result. If a length range is given, then the result will be in the range
+of lengths given, inclusive.
+
+Multiple patterns can be joined together in three ways:
+
+=over 5
+
+=item *
+
+You can just concatenate them to form a single pattern, and then they
+will be used in the order given.
+
+=item *
+
+Join them together with a C<,> to randomly select between multiple patterns
+
+=item *
+
+You can also join them with a C</> character. If you do this, then
+mkpasswd will actually choose between all permutations of the patterns that
+you give, so the pattern:
+
+  w/*/p
+
+Is going to choose between the following:
+
+  w*p
+  wp*
+  *wp
+  *pw
+  pw*
+  p*w
+
+and then it will use the selected pattern to generate a password.
+
+=back
+
+This is what the pattern format means:
+
+=over 5
+
+=item C<W>
+
+Word from /usr/dict/words (or equiv, see C<-w>)
+
+Modifiers:
+
+        T or N: Translate a, e, i, o and s to 4, 3, 1, 0 and 5 respectively.
+                N does this to all occurrences, T flips a coin for each one.
+        S:      Used with T or N. Converts some of the s's to $'s
+        C:      Mix up case of letters (50% chance upper/lower)
+	D:	Double a random character
+	I:	Insert a random character into a random point
+	J:	Join two words (e.g. "basend" from "base" "end")
+	R:	Reverse the resulting word always
+	V:	Reverse the resulting word 50% of the time
+
+Example of usage:
+
+  WST8-10
+
+Some modifiers take an optional numeric parameter in parentheses to indicate
+the percentage of times the modifier activates. For example:
+
+  WT(10)8-10
+
+would result in a word of 8-10 characters with a 10% of each of the
+letters that have numeric equivalents being translated. The same applies
+to T and V.
+
+=item C<p>
+
+24 punctuation characters that are believed to be safe for most operating
+systems and other systems that store passwords. (C<< !$%&*+=:;?.,(){}[]\/<>"' >>)
+
+Some systems cannot store some characters such as C<@> in passwords because
+of input restrictions. If you wish to override this restriction, use the
+C<--punctuation> option.
+
+=item C<a>
+
+Alpha character (a-z, A-Z)
+
+=item C<w>
+
+Word character (same as a, but includes 0-9 and _)
+
+=item C<n>
+
+Number (0-9)
+
+=item C<*>
+
+Any of the above characters or space.
+
+=item C<c>
+
+A specific list of characters. The modifier must be a bracket-delimited
+list of available characters that will be chosen from randomly like so:
+
+	c[abcd]2
+
+Which will result in 2 characters from the set "a", "b", "c" and "d".
+
+The only characters you cannot list currently are C<]>, C</> and
+C<,>. For these characters you can only use the general C<p> for
+punctuation. Future improved parsing of patterns may eliminate this
+shortcoming.
+
+=item C<x>
+
+Like a combination of C<W> and C<c>. Given a length like C<x8> come
+up with a word of that length that is statistically similar to the
+words in the dictionary, but not actually one of them (at least not
+selected from the list, though it could I<happen> to be one of them
+if you don't use the C<--non-words> option).
+
+This is done through a heuristic that selects letter groups based
+on their frequency in the given word list. The length I<must> be
+2 or more. The resulting word is likely to be pronounceable, and thus
+memorizable by someone who speaks the same language as the wordlist.
+
+It is debatable how secure a password based on such statistical
+trickery is, but it is safe to assume that it is at least slightly
+more secure than just picking a word from the list, and usually very
+much more secure, approaching a limit of the same security found by
+simply selecting random letters, but probably not getting within an order
+of magnitude.
+
+CORRECTION: I must have been tired when I wrote the above. It's not
+debatable at all. It's just that I haven't sat down and run the numbers,
+and it depends on your dictionary.
+
+NOTE: The same attributes can be specified for C<x> as for C<W>
+(e.g. C<C>, C<D>, etc.)
+
+C<J> has a special meaning when combined with C<x>. The result will be
+a set of short join-words (see C<W>'s C<J> attribute) between
+4 and 5 characters long, with a trailing normal C<x> range if
+needed for padding. For example, C<xJ10> might produce:
+
+ gap/apt + bra/rap + "la" = "gaptbrapla"
+
+=back
+
+Each of these characters may be followed by a count, which is either a number
+(e.g. 3) or a range (e.g. 3-5). The only special-case is W, where the "count"
+specifies how long the word should be.
+
+=head1 STATISTICS
+
+I used to have a big section on statistics, but it kept getting
+invalidated every time I updated my dictionary.
+
+Suffice to say that "*n" where n is some number is the most secure
+pattern for length n. Second most secure is "wn" unless you count
+convoluted uses of the "c" pattern. After that, you
+start to get into some debatable territory where word list and
+pattern selection are variables in a rather complex equation.
+
+I like patterns that abuse multiple character sub-sets while not
+firmly requiring anything. So, I'm a big fan of things like:
+
+  WTC5/WJT4/*
+
+and
+
+  xJT9/*
+
+and best of all:
+
+  xI9
+
+These don't have a great range in terms of permutations, but unless
+an attacker specifically focuses their attention on these and only
+these patterns (yes, that means you should pick your own patterns
+rather that just using those or the built-in C<-r> defaults), they
+fall into I<much> larger domains of passwords that are difficult to
+brute-force.
+
+That said, everything can be brute-forced, so don't get too cocky
+about your passwords being strong. Use password expiration if you can,
+and educate your users about their options if you're a sysadmin.
+
+S/Key and other one-time options are also a win.
+
+=head1 OPTIONS
+
+Other options to mkpasswd:
+
+=over 5
+
+=item C<-d>
+
+Turn on debugging output. Intended for development purposes only.
+
+=item C<-n>
+
+Give a number of passwords that you wish to generate. This is for creating
+a lot of passwords for, say, the initial creation of an entire incoming
+year of freshmen at a college. This is a serious opportunity for
+crackers, because all of your passwords will be generated with one
+pattern, so either use this option I<very> sparingly, or make sure that
+the users have to change their passwords as soon as they log in.
+
+=item C<-p>
+
+Give the pattern here.
+
+=item C<-r>
+
+Generate a random pattern: not implemented. Right now this option
+causes mkpasswd to use one default pattern, and thus is B<not> secure!
+
+=item C<-s>
+
+Give the salt to use. If you don't know what a salt is, you likely don't
+care, and mkpasswd will make one up randomly. But, if you need to preserve
+the same salt as an existing password, this is how.
+
+=item C<-w>
+
+Give the full path to the word list to be used. This list should consist
+of single words, on to a line.
+
+=item C<-C>
+
+AKA C<--ciphertext>
+
+Only produce the encrypted version of the password to standard output.
+This option is the default when providing a password to standard input.
+
+=item C<-P>
+
+AKA C<--plaintext>
+
+Only produce the plain text version of the password to standard output.
+This option is useful when generating a password that will be
+entered into a password prompt of another program, rather than
+directly typed into a password database or config file.
+
+=item C<-5>
+
+On systems which support the MD5 crypt(3) extension, use that for
+the encrypted password. This allows for long passwords by default, and
+raises the default max-password length.
+
+Also with this option, the "salt" used for the one-way encryption is 8
+instead of 2 characters.
+
+On systems that do not support this extension, this option will
+probably result in a "salt" of C<$1> being used and any extra
+characters after the first 8 being discarded.
+
+There is also a C<-U> option to shut this off, but that's the default.
+
+=item C<--extra-long>
+
+Normally, when using MD5-passwords, resulting passwords are limited
+to 12 characters. However, the use of this parameter forces
+extra-long passwords to be considered valid. Use with caution,
+as some password generation techniques can take a long (possibly
+infinite) time once you get past 15-20 characters. It is best
+to combine this option with C<-X> and/or C<-p> and I<not> C<-r>
+unless you're very sure of what you expect to get as a result.
+
+=item C<--extra-random>
+
+Normally, a random number is chose by using the best random
+number generation techniques available, once at the start of the
+program. Subsequent random numbers (e.g. for choosing letters
+or words) are chosen via a pseudo-random sequence built into
+the Perl libraries. You can force the program to take extra
+time by re-seeding the random number generation with a much
+more random number before every choice by using this option.
+
+=item C<--non-words>
+
+Normally a randomly chosen result that happens to be a word
+(or a concatenation of two or more words) is considered valid,
+but with this option all such results are rejected.
+
+This option also removes some of the default random patterns
+that can generate word-like results.
+
+=item C<--passwd-program>
+
+Given a program name or full path, use that program for the
+C<--user> option. You must specify the username with the
+C<--user> option for this option to have any effect.
+
+The default is simply C<passwd>. NOTE: THIS IS NOT CURRENTLY WORKING!
+
+=item C<--punctuation>
+
+You can provide a set of punctuation marks to use. To just add to the
+default set, use C<add:> followed by the character(s), like so:
+
+  --punctuation add:@
+
+=item C<--user>
+
+Use the C<passwd> program (or the program specified by the C<--passwd-program>
+option) to change a user's password. This option requires two things: the
+username as an argument and for the C<Expect> Perl library to be
+installed and functional.
+
+NOTE: THIS IS NOT CURRENTLY WORKING! I have had problems with
+expect, and no ETA on resolving them yet.
+
+=item C<--strict>
+
+Turn on strict mode. Makes much stronger default passwords, but
+also passwords that are harder to remember and thus potentially
+less secure against social engineering.
+
+If you provide your own pattern via the C<-p> option, then C<--strict>
+just turns on a number of extra security parameters like
+C<--extra-random>, C<-j 2>, C<-5> and C<--non-words>.
+
+=back
+
+=head2 YAML
+
+YAML is a file-format for storing complex data on disk. B<mkpasswd> can
+use the C<YAML::Syck> module to load or dump the wordlist file as pre-processed
+data. Because processing the wordlist is slow, this can substanially
+speed up runtime of B<mkpasswd>.
+
+=over 5
+
+=item C<--yaml-dump FILE>
+
+Given a filename, dump the wordlist (see C<-w>) to disk as YAML data. An
+example of usage:
+
+ mkpasswd -w wordlist.txt --yaml-dump wordlist.yaml
+
+=item C<--yaml-load>
+
+The wordlist (given by C<-w>) is assumed to be previously dumped YAML data,
+rather than a line-by-line wordlist. An example of usage:
+
+ mkpasswd -w wordlist.yaml --yaml-load
+
+=head2 Expect Compatibility
+
+The Expect package comes with a program which is also called mkpasswd.
+The expect mkpasswd generates a password which contains (by
+default) the same distribution as the pattern:
+
+  n2/c[abcdefghijklmnopqrstuvwxyz]2/c[ABCDEFGHIJKLMNOPQRSTUVWXYZ]2/p1/*2
+
+Except that mkpasswd also tries to make passwords "easy to type" in
+a way incompatible with the mechanism used by this program. If you want
+to approximate expect's mkpasswd, try:
+
+        mkpasswd --strict --easy -r -5
+
+This compares unfavorably with a strong 9-character password like
+C<w9>, but is not terrible overall. However,
+the passwords generated by this mode are generally quite
+hard to remember, so it's not at all recommended.
+This mode is just here for compatibility with expect.
+
+This brings up the common fallacy that "complicated" passwords are more
+secure. In general, the more restrictions you place on password
+generation, the less secure the result is. Some restrictions
+(e.g. that the result must not be in the dictionary) remove so small
+a space that they are reasonable, but to require, for example, that one
+of the characters in a password be number or be punctuation removes
+so much of the possible password space that you are actually harming the
+result more than helping it! Keep this in mind when forming your own
+patterns.
+
+=head3 Options
+
+=over 5
+
+=item C<-E|--expect-mode>
+
+Turn on compatibility with expects' mkpasswd. If you don't provide this
+option, all other options are moot.
+
+=item C<--expect-length>
+
+Same as expect-mkpasswd's "-l" option.
+
+Set the length of the password to generate. Default is 9.
+
+=item C<--expect-digits>
+
+Same as expect-mkpasswd's "-d" option.
+
+Set the number of digits that will be in the resulting password.
+Default is 2.
+
+C<--expect-lower-case>
+
+Same as expect-mkpasswd's "-c" option.
+
+Set the number of lower-case letters in the resulting password. Default is 2.
+
+C<--expect-upper-case>
+
+Same as expect-mkpasswd's "-C" option.
+
+Set the number of upper-case letters in the resulting password. Default is 2.
+
+C<--expect-special>
+
+Same as expect-mkpasswd's "-s" option.
+
+Set the number of "special" characters in the resulting password. This
+is the same set of characters as in the "p" pattern. Default is 1.
+
+C<--expect-passwd-program>
+
+Same as expect-mkpasswd's "-p" option. This option is also just
+an alias for the C<--passwd-program> option. It is here because
+users of expect's mkpasswd might assume that it would be here.
+
+Set the path or just the name of the program to use to set the
+user's password.
+
+=back
+
+=head1 EXAMPLES
+
+Examples of command-line usage (adding C<-d> to any of these lets you
+watch them do their thing):
+
+This can take a long time, but produces a fairly decent password:
+
+  mkpasswd -p 'WJ9*' --strict
+
+Here's a nice simple command-line that produces a password that can
+be hard to remember, but is VERY secure:
+
+  mkpasswd --strict
+
+And here's the default random patterns used to generate 10 passwords:
+
+  mkpasswd -r -n 10
+
+The same as the above, but just print the passwords, not the
+encrypted form:
+
+  mkpasswd -r -n 10 -P
+
+And again the same, but for MD5 passwords:
+
+  mkpasswd -r -n 10 -5
+
+=head1 BUGS
+
+Mostly statistical in nature. More work needs to be done to allow more
+randomness in word selection especially.
+
+=head1 AUTHOR
+
+Aaron Sherman (c) 1999 and distributed under the terms of the GNU
+General Public License (see www.gnu.org).
+
+=cut
+
+/*
+ * -*-perl-*-
+ * Local variables:
+ * cperl-indent-level: 2
+ * End:
+ *
+ * vim: expandtab shiftwidth=2:
+*/

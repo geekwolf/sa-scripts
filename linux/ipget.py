@@ -3,6 +3,7 @@
 # Author:Geekwolf
 # Blog:http://www.simlinux.com
 # Des:Get ip's owner
+# 可使用nali软件:https://qqwry.googlecode.com/files/nali-0.2.tar.gz
 
 import sys, urllib, simplejson 
 

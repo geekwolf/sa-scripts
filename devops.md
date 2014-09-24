@@ -8,7 +8,7 @@ Weibo:[http://weibo.com/geekwolf](http://weibo.com/geekwolf)<br>
 **监控类工具:**&emsp;Cacti、Nagios(Icinga)、Zabbix、基于时间监控前端Grafana <br>
 **日志系统:**&emsp;&emsp;Logstash、Scribe<br>
 **流控系统:**&emsp;&emsp;Panabit<br>
-**PaaS：**&emsp;&emsp;&emsp;Cloudify、Cloudfoundry、Openshift（Docker、CoreOS、Atom） <br>
+**PaaS：**&emsp;&emsp;&emsp;Cloudify、Cloudfoundry、Openshift（Docker、CoreOS、Atomic） <br>
 **MySQL HA:**&emsp;MMM/MHA/Heartbeat+DRBD/Heartbeat+SAN/NDB Cluster/RHCS+DRBD/Galera+XtraDB Cluster/MMM+Amoeba
 
 

@@ -9,7 +9,7 @@ Weibo:[http://weibo.com/geekwolf](http://weibo.com/geekwolf)<br>
 **日志系统:**&emsp;&emsp;Logstash、Scribe<br>
 **流控系统:**&emsp;&emsp;Panabit<br>
 **PaaS：**&emsp;&emsp;&emsp;Cloudify、Cloudfoundry、Openshift（Docker、CoreOS、Atomic） <br>
-**MySQL HA:**&emsp;MMM/MHA/Heartbeat+DRBD/Heartbeat+SAN/NDB Cluster/RHCS+DRBD/Galera+XtraDB Cluster/MMM+Amoeba
+**MySQL HA:**&emsp;MMM/MHA/Heartbeat+DRBD/Heartbeat+SAN/NDB Cluster/RHCS+DRBD/Galera+XtraDB Cluster/MMM+Amoeba<br>
 **MySQL 监控:**mytop、orzdba、percona-toolkit
 
 **Capistrano**
@@ -196,10 +196,10 @@ Graphite-web 是 graphite组件之一, 提供一个django的可以高度扩展�
 
 **fabric**
 
-Fabric 是一个 Python (2.5 或更高) 库和命令行工具，用于连接到 SSH 服务器并执行命令。（ 项目详情）
-代码托管地址： https://github.com/fabric/fabric
+Fabric 是一个 Python (2.5 或更高) 库和命令行工具，用于连接到 SSH 服务器并执行命令。（ 项目详情）<br>
+**代码托管地址**： https://github.com/fabric/fabric
 
-推荐相关文档：
+**推荐相关文档**：
 
 [Python Fabric实现远程操作和部署](http://blog.csdn.net/jazywoo123/article/details/19152465)<br>
 [MySQL原生HA方案 – Fabric体验之旅](http://blog.csdn.net/njchenyi/article/details/38739779)<br>

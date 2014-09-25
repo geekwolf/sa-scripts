@@ -10,6 +10,7 @@ Weibo:[http://weibo.com/geekwolf](http://weibo.com/geekwolf)<br>
 **绘图工具:**&emsp;&emsp;RRDtool、Gnuplot<br>
 **流控系统:**&emsp;&emsp;Panabit<br>
 **PaaS：**&emsp;&emsp;&emsp;Cloudify、Cloudfoundry、Openshift（Docker、CoreOS、Atomic） <br>
+**Troubleshooting:**[Sysdig](http://www.sysdig.org/) 、Systemtap、Perf<br>
 **MySQL HA:**&emsp;MMM/MHA/Heartbeat+DRBD/Heartbeat+SAN/NDB Cluster/RHCS+DRBD/Galera+XtraDB Cluster/MMM+Amoeba<br>
 **MySQL 监控:**&emsp;mytop、orzdba、percona-toolkit<br>
 **MySQL基准测试:**&emsp;mysqlsla、sql-bench、Super Smack、Percona's TPCC-MYSQL Tool、sysbench

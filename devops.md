@@ -7,10 +7,12 @@ Weibo:[http://weibo.com/geekwolf](http://weibo.com/geekwolf)<br>
 **配置类工具:**&emsp;Capistrano、Chef、puppet、func、salstack、Ansible、rundeck<br>
 **监控类工具:**&emsp;Cacti、Nagios(Icinga)、Zabbix、基于时间监控前端Grafana、Mtop <br>
 **日志系统:**&emsp;&emsp;Logstash、Scribe<br>
+**绘图工具:**&emsp;&emsp;RRDtool、Gnuplot<br>
 **流控系统:**&emsp;&emsp;Panabit<br>
 **PaaS：**&emsp;&emsp;&emsp;Cloudify、Cloudfoundry、Openshift（Docker、CoreOS、Atomic） <br>
 **MySQL HA:**&emsp;MMM/MHA/Heartbeat+DRBD/Heartbeat+SAN/NDB Cluster/RHCS+DRBD/Galera+XtraDB Cluster/MMM+Amoeba<br>
 **MySQL 监控:**mytop、orzdba、percona-toolkit
+**MySQL基准测试:**mysqlsla、sql-bench、Super Smack、Percona's TPCC-MYSQL Tool、sysbench
 
 **Capistrano**
 

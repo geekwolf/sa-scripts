@@ -9,10 +9,11 @@ Weibo:[http://weibo.com/geekwolf](http://weibo.com/geekwolf)<br>
 **日志系统:**&emsp;&emsp;Logstash、Scribe<br>
 **绘图工具:**&emsp;&emsp;RRDtool、Gnuplot<br>
 **流控系统:**&emsp;&emsp;Panabit<br>
-**PaaS：**&emsp;&emsp;&emsp;Cloudify、Cloudfoundry、Openshift（Docker、CoreOS、Atomic） <br>
+**PaaS：**&emsp;&emsp;&emsp;Cloudify、Cloudfoundry、Openshift、[Deis](http://www.deis.io/) （Docker、CoreOS、Atomic） <br>
 **Troubleshooting:**[Sysdig](http://www.sysdig.org/) 、Systemtap、Perf<br>
+**磁盘压测:**&emsp;&emsp;fio、iozone<br>
 **MySQL HA:**&emsp;MMM/MHA/Heartbeat+DRBD/Heartbeat+SAN/NDB Cluster/RHCS+DRBD/Galera+XtraDB Cluster/MMM+Amoeba<br>
-**MySQL 监控:**&emsp;mytop、orzdba、percona-toolkit<br>
+**MySQL 监控:**&emsp;mytop、orzdba、Percona-toolkit、Maatkit<br>
 **MySQL基准测试:**&emsp;mysqlsla、sql-bench、Super Smack、Percona's TPCC-MYSQL Tool、sysbench
 
 **Capistrano**

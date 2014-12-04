@@ -9,6 +9,7 @@ Weibo:[http://weibo.com/geekwolf](http://weibo.com/geekwolf)<br>
 **日志系统:**&emsp;&emsp;Logstash、Scribe<br>
 **绘图工具:**&emsp;&emsp;RRDtool、Gnuplot<br>
 **流控系统:**&emsp;&emsp;Panabit<br>
+**安全检查:**&emsp;&emsp;chrootkit、rkhunter<br>
 **PaaS：**&emsp;&emsp;&emsp;Cloudify、Cloudfoundry、Openshift、[Deis](http://www.deis.io/) （Docker、CoreOS、Atomic） <br>
 **Troubleshooting:**[Sysdig](http://www.sysdig.org/) 、Systemtap、Perf<br>
 **磁盘压测:**&emsp;&emsp;fio、iozone、IOMeter(win)<br>
@@ -16,6 +17,7 @@ Weibo:[http://weibo.com/geekwolf](http://weibo.com/geekwolf)<br>
 **Redis**&emsp;&emsp;[Dynomite](https://github.com/Netflix/dynomite)、Twemproxy<br>
 **MySQL 监控:**&emsp;mytop、orzdba、Percona-toolkit、Maatkit、[innotop](http://www.percona.com/blog/2013/10/14/innotop-real-time-advanced-investigation-tool-mysql/)、[myawr](https://github.com/noodba/myawr)、[SQL级监控mysqlpcap](https://github.com/hoterran/tcpcollect) <br>
 **MySQL基准测试:**&emsp;mysqlsla、sql-bench、Super Smack、Percona's TPCC-MYSQL Tool、sysbench <br>
+**MySQL Proxy:**&emsp;[SOHU-DBProxy](https://github.com/SOHUDBA/SOHU-DBProxy)、[Altas](https://github.com/Qihoo360/Atlas)、[cobar](https://github.com/alibaba/cobar)<br>
 **MongoDB压测:**&emsp;[iibench&sysbench](https://github.com/tmcallaghan)<br>
 
 **Capistrano**

@@ -10,7 +10,7 @@ Weibo:[http://weibo.com/geekwolf](http://weibo.com/geekwolf)<br>
 **绘图工具:**&emsp;&emsp;RRDtool、Gnuplot<br>
 **流控系统:**&emsp;&emsp;Panabit<br>
 **安全检查:**&emsp;&emsp;chrootkit、rkhunter<br>
-**PaaS：**&emsp;&emsp;&emsp;Cloudify、Cloudfoundry、Openshift、[Deis](http://www.deis.io/) （Docker、CoreOS、Atomic） <br>
+**PaaS：**&emsp;&emsp;&emsp;Cloudify、Cloudfoundry、Openshift、[Deis](http://www.deis.io/) （Docker、CoreOS、Atomic、[ubuntu core/Snappy](http://www.ubuntu.com/cloud/tools/snappy)） <br>
 **Troubleshooting:**[Sysdig](http://www.sysdig.org/) 、Systemtap、Perf<br>
 **磁盘压测:**&emsp;&emsp;fio、iozone、IOMeter(win)<br>
 **Memcache**&emsp;&emsp;[Mcrouter(scaling memcached)](https://github.com/facebook/mcrouter)<br>

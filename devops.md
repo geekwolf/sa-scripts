@@ -4,8 +4,10 @@ Weibo:[http://weibo.com/geekwolf](http://weibo.com/geekwolf)<br>
 
 
 **Bootstrapping：**&emsp;Kickstart、Cobbler、rpmbuild/xen、kvm、lxc、Openstack、 Cloudstack、Opennebula、Eucalyplus、RHEV<br>
-**配置类工具:**&emsp;Capistrano、Chef、puppet、func、salstack、Ansible、rundeck<br>
-**监控类工具:**&emsp;Cacti、Nagios(Icinga)、Zabbix、基于时间监控前端Grafana、Mtop、MRTG(网络流量监控图形工具)、[Monit](https://mmonit.com/) <br>
+**配置类工具:**&emsp;Capistrano、Chef、puppet、func、salstack、Ansible、rundeck、CFengine、Rudder<br>
+**自动化构建和测试:**&emsp;Ant、Maven、Selenium、PyUnit、QUnit、JMeter、Gradle、PHPUnit<br>
+**监控类工具:**&emsp;Cacti、Nagios(Icinga)、Zabbix、基于时间监控前端Grafana、Mtop、MRTG(网络流量监控图形工具)、[Monit](https://mmonit.com/) 、Diamond+Graphite+Grafana<br>
+**微服务平台:**&emsp;OpenShift、Cloud Foundry、Kubernetes、Mesosphere<br>
 **性能监控工具:**&emsp;dstat(多类型资源统计)、atop(htop/top)、nmon(类Unix系统性能监控)、slabtop(内核slab缓存信息)、sar(性能监控和瓶颈检查)、sysdig(系统进程高级视图)、tcpdump(网络抓包)、iftop(类似top的网络连接工具)、iperf(网络性能工具)、smem)(高级内存报表工具)、collectl(性能监控工具)<br>
 **免费APM工具:**&emsp;&emsp;[mmtrix(见过的最全面的分析工具)](http://www.mmtrix.com/evaluate/result)、[alibench](http://alibench.com/)<br>
 **进程监控:**&emsp;&emsp;[mmonit](http://mmonit.com/monit/documentation/monit.html)、Supervisor、[frigga](https://github.com/xiaomi-sa/frigga)、 [StrongLoop Process Manager](http://strong-pm.io/compare/)<br>

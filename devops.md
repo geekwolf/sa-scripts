@@ -29,6 +29,8 @@ Weibo:[http://weibo.com/geekwolf](http://weibo.com/geekwolf)<br>
 **MySQL物理备份工具**:&emsp;Xtrabackup、LVM Snapshot<br>
 **MongoDB压测:**&emsp;[iibench&sysbench](https://github.com/tmcallaghan)<br>
 
+**DevOps**<br>
+![DevOps](http://cdn2.hubspot.net/hubfs/381387/Blog-image-tracking/ElasticBox-DevOps_Open_Source_Tools.png?utm_campaign=Wordpress&utm_medium=social&utm_source=mybloglog)<br>
 **Capistrano**
 
 Capistrano是一种在多台服务器上运行脚本的开源工具，它主要用于部署web应用。它自动完成多台服务器上新版本的同步更新，包括数据库的改变。Capistrano最初由Jamis Buck用Ruby开发，并用RubyGems部署渠道部署。现在Capistrano不仅限于应用Ruby on Rails的 web应用框架，而且可以用于部署用其他框架的web应用程序，比如用PHP开发的。（ [项目详情](https://code.csdn.net/openkb/p-capistrano)）

@@ -3,8 +3,9 @@ Blog：[http://www.simlinux.com](http://www.simlinux.com)<br>
 Weibo:[http://weibo.com/geekwolf](http://weibo.com/geekwolf)<br>
 
 
-**Bootstrapping：**&emsp;Kickstart、Cobbler、rpmbuild/xen、kvm、lxc、Openstack、 Cloudstack、Opennebula、Eucalyplus、RHEV<br>
+**Bootstrapping：**&emsp;[云霁X86装机工具](http://github.com/idcos/osinstall)、Kickstart、Cobbler、rpmbuild/xen、kvm、lxc、Openstack、 Cloudstack、Opennebula、Eucalyplus、RHEV<br>
 **配置类工具:**&emsp;Capistrano、Chef、puppet、func、salstack、Ansible、rundeck、CFengine、Rudder<br>
+**web管理平台:**&emsp;[Redis云管理平台-CacheCloud](https://github.com/sohutv/cachecloud)<br>
 **自动化构建和测试:**&emsp;Ant、Maven、Selenium、PyUnit、QUnit、JMeter、Gradle、PHPUnit<br>
 **监控类工具:**&emsp;Cacti、Nagios(Icinga)、Zabbix、基于时间监控前端Grafana、Mtop、MRTG(网络流量监控图形工具)、[Monit](https://mmonit.com/) 、Diamond+Graphite+Grafana<br>
 **微服务平台:**&emsp;OpenShift、Cloud Foundry、Kubernetes、Mesosphere<br>

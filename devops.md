@@ -20,7 +20,7 @@ Weibo:[http://weibo.com/geekwolf](http://weibo.com/geekwolf)<br>
 **Troubleshooting:**[Sysdig](http://www.sysdig.org/) 、Systemtap、Perf<br>
 **服务发现：**&emsp;&emsp;&emsp;[SmartStack](http://nerds.airbnb.com)、etcd <br>
 **持续集成:**&emsp;&emsp;[Go](http://www.go.cd)、Jenkins、Gitlab、[facebook代码审查工具phabricator](http://phabricator.org/)、[spinnaker](http://spinnaker.io/)<br>
-**APP CD:**&emsp;&emsp;[fastlane](https://fastlane.tools/#tools)</br>
+**APP CD:**&emsp;&emsp;[fastlane](https://fastlane.tools/#tools)、[xcode_shell](https://github.com/webfrogs/xcode_shell.git)、[xctool](https://github.com/facebook/xctool.git)</br>
 **磁盘压测:**&emsp;&emsp;fio、iozone、IOMeter(win)<br>
 **Memcache**&emsp;&emsp;[Mcrouter(scaling memcached)](https://github.com/facebook/mcrouter)<br>
 **Redis**&emsp;&emsp;[Dynomite](https://github.com/Netflix/dynomite)、Twemproxy、codis/SSDB/Aerospike、Redis Cluster<br>

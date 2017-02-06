@@ -48,8 +48,8 @@ def get_data(start, end):
                 if value == 'TCP' or value == 'UDP' or value == 'PROC':
                     dict1.extend([int(imax), int(iavg), int(imin)])
                 elif value == 'CPU':
-                    dict1.extend([format(float(100 - imax), '0.2f') + "%", format(float(100 - iavg), '0.2f') + "%",
-                                  format(float(100 - imin), '0.2f') + "%"])
+                    dict1.extend([format(float(100 - imin), '0.2f') + "%", format(float(100 - iavg), '0.2f') + "%",
+                                  format(float(100 - imax), '0.2f') + "%"])
                 else:
                     dict1.extend([format(imax, '0.2f'), format(iavg, '0.2f'), format(imin, '0.2f')])
             else:

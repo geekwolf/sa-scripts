@@ -34,7 +34,7 @@ esac
 cpu_count=`head -n1 /proc/interrupts|awk '{print NF}'`
 
 # get interface name
-interfaces=`route -n | awk 'NR>2 && !a[$NF]++{print $NF}' | grep '^eth[0-9]\|bond[0-9]$'`
+interfaces=`route -n | awk 'NR>2 && !a[$NF]++{print $NF}' | grep '^eth[0-9.]\+\|bond[0-9.]\+$'`
 
 set_rps(){
     interface="$@"

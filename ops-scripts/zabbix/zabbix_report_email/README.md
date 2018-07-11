@@ -1,3 +1,7 @@
+#### 版本
+```
+    Python2.7
+```
 #### 安装依赖
 ```
     pip install -r requirements.txt

@@ -3,7 +3,7 @@
 # @Author: Geekwolf
 # @Date:   2018-05-07 13:26:12
 # @Last Modified by:   Geekwolf
-# @Last Modified time: 2018-07-11 10:52:39
+# @Last Modified time: 2018-07-11 14:11:00
 
 import ConfigParser
 import cookielib
@@ -150,13 +150,13 @@ class ZabbixGraph(object):
             doc.add_paragraph(title.decode('utf8'), style='style_title')
             for idx, val in enumerate(data[d[1]]):
                 #sub_title = u'内存' if idx%2 == 1 else u'CPU'
-		if idx >=2:
-		    sub_title = u'内存'
-		else:
-		    sub_title = u'CPU'
-		if idx%2 != 1:
+        		if idx >=2:
+        		    sub_title = u'内存'
+        		else:
+        		    sub_title = u'CPU'
+        		if idx%2 != 1:
                     doc.add_paragraph(sub_title, style='sub_title')
-                doc.add_picture(val, width=Inches(6.5), height=Inches(3))
+                    doc.add_picture(val, width=Inches(6.5), height=Inches(3))
         file = 'report-{}.docx'.format(('').join(_time.split('-')))
         doc.save(file)
         #如果将报表上传ftp,可以去掉注释
@@ -204,20 +204,18 @@ class AlarmInfo(ZabbixGraph):
     	itemid = _info[2].split('|')[0]
     	imagename = self.GetItemGraph(itemid)
     	fro = config.get('email','username')
-    	_content = (':').join(_info[3].split('|')[1:])
+    	_content = ('<br/>').join(_info[3].split('\n'))
     	content = '{}<br><img src="cid:image1"/>'.format(_content)
     	msg = MIMEMultipart()
-            #msg['From'] = '监控告警<{}>'.format(fro).decode('utf-8')
+        #msg['From'] = '监控告警<{}>'.format(fro).decode('utf-8')
     	msg['From'] = "%s<%s>" % (Header("监控告警","utf-8"),fro)
     	msg['Subject'] = Header((': ').join(_info[2].split('|')[-2:]),'utf-8')
     	msg['To'] = _info[1]
-            msg.attach(MIMEText(content,'html','utf-8'))
-    	
-            with open(imagename,'rb') as f:
+        msg.attach(MIMEText(content,'html','utf-8'))   
+        with open(imagename,'rb') as f:
        	    img = MIMEImage(f.read())
             img.add_header('Content-ID', '<image1>')
             msg.attach(img)
-
     	try:
     	    email = self.Email()
     	    email.sendmail(fro,_info[1],msg.as_string())
@@ -232,8 +230,7 @@ class AlarmInfo(ZabbixGraph):
     	        self.Log(rec)
     	        self.SendEmail(_info)
     	    elif len(_info) == 2 and _info[1] == 'report':
-    		print 'tt'
-    		self.GetGraph()
+    		    self.GetGraph()
     	except Exception as e:
     	    self.Log(str(e))	
     		

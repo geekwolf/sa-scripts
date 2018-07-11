@@ -1,0 +1,3 @@
+ConfigParser
+python-docx
+email

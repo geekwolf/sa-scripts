@@ -64,6 +64,4 @@ then
 end
 ```
 #### 6.Lua加载顺序
-```
-![avatar](https://cloud.githubusercontent.com/assets/2137369/15272097/77d1c09e-1a37-11e6-97ef-d9767035fc3e.png)
-```
+![](https://cloud.githubusercontent.com/assets/2137369/15272097/77d1c09e-1a37-11e6-97ef-d9767035fc3e.png)
